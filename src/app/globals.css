@@ -1,0 +1,124 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --calm-sage: #7FA99B;
+    --deep-pine: #2E4F4A;
+    --warm-sand: #EAE3D6;
+    --soft-clay: #D9A283;
+    --sky-mist: #A9C5CE;
+    --paper: #FAF7F2;
+    --surface: #EAE3D6; /* warm-sand cards — brand forbids pure #FFFFFF */
+    --ink: #33403D;
+    --mist: #C9D2CE;
+    --success: #6FAE7E;
+    --attention: #E0B25C;
+    --info: #7FA1B8;
+    --focus-ring: var(--deep-pine);
+  }
+
+  .dark, [data-theme="night-calm"] {
+    --calm-sage: #8FBBAC;
+    --deep-pine: #2E4F4A;
+    --warm-sand: #1E2826;
+    --paper: #161E1C;
+    --surface: #1E2826;
+    --ink: #E4E9E6;
+    --mist: #2C3835;
+    --soft-clay: #D9A283;
+    --sky-mist: #A9C5CE;
+    --success: #6FAE7E;
+    --attention: #E0B25C;
+    --info: #7FA1B8;
+    --focus-ring: var(--calm-sage);
+  }
+
+  body {
+    background-color: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-inter), sans-serif;
+    font-size: 17px;
+    line-height: 1.6;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-fraunces), serif;
+  }
+
+  *:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 4px;
+  }
+}
+
+@layer components {
+  .noise-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    opacity: 0.03;
+    pointer-events: none;
+    z-index: 9999;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    mix-blend-mode: overlay;
+  }
+}
+
+@layer utilities {
+  .text-2xs {
+    font-size: 0.65rem;
+    line-height: 1rem;
+  }
+
+  .animate-breathing {
+    animation: breathing 3.8s ease-in-out infinite;
+  }
+
+  .animate-scan {
+    animation: scan 1.5s linear infinite;
+  }
+
+  .animate-fade-in {
+    animation: fade-in 300ms ease-out both;
+  }
+}
+
+@keyframes breathing {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.65;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+}
+
+@keyframes scan {
+  0% { left: -40%; }
+  100% { left: 100%; }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-breathing,
+  .animate-scan,
+  .animate-fade-in {
+    animation: none !important;
+  }
+}

@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Color tokens - Light mode default */
+    --calm-sage: #7FA99B;
+    --deep-pine: #2E4F4A;
+    --warm-sand: #EAE3D6;
+    --soft-clay: #D9A283;
+    --sky-mist: #A9C5CE;
+    --paper: #FAF7F2;
+    --surface: #EAE3D6; /* Cards default to warm-sand surfaces */
+    --surface-white: #FFFFFF; /* Alternative pure card surface for light mode */
+    --ink: #33403D;
+    --mist: #C9D2CE;
+    
+    --success: #6FAE7E;
+    --attention: #E0B25C;
+    --info: #7FA1B8;
+  }
+
+  .dark {
+    /* Color tokens - Dark mode (Night Calm) */
+    --calm-sage: #8FBBAC;
+    --deep-pine: #FAF7F2; /* Make headings off-white in dark mode for contrast */
+    --warm-sand: #1E2826; /* Map warm-sand to dark surfaces */
+    --soft-clay: #E2B299; /* Muted warm accent for dark */
+    --sky-mist: #BDD2D9; /* Muted cool accent for dark */
+    --paper: #161E1C; /* Main dark background */
+    --surface: #1E2826; /* Card surface in dark */
+    --surface-white: #1E2826;
+    --ink: #E4E9E6; /* Body text */
+    --mist: #2C3835; /* Borders */
+    
+    --success: #82C191;
+    --attention: #EDC578;
+    --info: #95B6CD;
+  }
+}
+
+@layer base {
+  body {
+    background-color: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-inter), sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+    transition-property: color, background-color, border-color;
+    transition-duration: 300ms;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    color: var(--deep-pine);
+    font-family: var(--font-fraunces), serif;
+    font-weight: 500;
+  }
+}
+
+/* Subtle noise overlay (2.5% opacity) to add warmth */
+.noise-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  content: "";
+  opacity: 0.025;
+  pointer-events: none;
+  z-index: 9999;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+/* Base custom classes to support brand constraints */
+.btn-primary {
+  background-color: var(--calm-sage);
+  color: var(--deep-pine);
+  font-family: var(--font-inter), sans-serif;
+  font-weight: 500;
+  border-radius: 9999px;
+  padding: 0.75rem 1.5rem;
+  transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-primary:hover {
+  filter: brightness(0.95);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: translateY(1px);
+}
+
+.card-calm {
+  background-color: var(--surface);
+  border: 1px solid var(--mist);
+  border-radius: 20px;
+  box-shadow: 0 4px 20px -2px rgba(46, 79, 74, 0.03), 0 2px 8px -1px rgba(46, 79, 74, 0.02);
+  transition: all 400ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.card-calm:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px -4px rgba(46, 79, 74, 0.06), 0 4px 12px -2px rgba(46, 79, 74, 0.04);
+}
