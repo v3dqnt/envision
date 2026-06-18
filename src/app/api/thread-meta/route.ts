@@ -13,11 +13,13 @@ export async function POST(req: Request) {
       messages: [
         {
           role: 'system',
-          content: `You label a document for a list and decide which help tools fit it. Respond ONLY as JSON: {"title": string, "suggestSupport": boolean, "suggestEligibility": boolean}.
+          content: `You label a document for a list and decide which help tools fit it. Respond ONLY as JSON: {"title": string, "suggestSupport": boolean, "suggestEligibility": boolean, "deadline": string, "deadlineLabel": string}.
 
 - title: 3-6 words, specific to the actual contents — not generic. Good: "Apollo ₹15k inpatient bill", "SNAP recertification — due Jul 10", "School attendance warning (6 absences)", "Section 8 housing eligibility". Bad: "Medical bill", "Document". No quotes, no trailing punctuation.
 - suggestSupport: true only if finding nearby in-person places (food banks, free clinics, pharmacies, social-service or government offices, libraries) would genuinely help THIS person. True for food assistance, housing help, needing a clinic/pharmacy/discharge care, applying for benefits in person. False for things resolved by phone/email/paperwork — a billing dispute, a debt-collection letter, a permission slip.
-- suggestEligibility: true if the person could plausibly qualify for assistance programs worth checking (food, housing, medical/low-income, benefits, family/disability/senior contexts). False for routine items with no benefit angle (a school permission slip, a simple billing dispute).`,
+- suggestEligibility: true if the person could plausibly qualify for assistance programs worth checking (food, housing, medical/low-income, benefits, family/disability/senior contexts). False for routine items with no benefit angle (a school permission slip, a simple billing dispute).
+- deadline: the single most important hard deadline in the document as an ISO date "YYYY-MM-DD", ONLY if an explicit calendar date is present. If the date is relative ("within 30 days") or there is no deadline, use "".
+- deadlineLabel: 2-5 words for what's due by then, e.g. "Send proof of income", "Pay or appeal". "" if no deadline.`,
         },
         {
           role: 'user',
@@ -35,13 +37,16 @@ ${(analysis || '').slice(0, 2500)}`,
     if (isReasoningModel(ANNOTATE_MODEL)) params.reasoning_effort = REASONING_EFFORT === 'high' ? 'low' : REASONING_EFFORT;
 
     const completion = await openai.chat.completions.create(params);
-    let out = { title: '', suggestSupport: false, suggestEligibility: false };
+    let out: any = { title: '', suggestSupport: false, suggestEligibility: false, deadline: '', deadlineLabel: '' };
     try {
       const parsed = JSON.parse(completion.choices[0].message.content || '{}');
+      const iso = typeof parsed.deadline === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(parsed.deadline) ? parsed.deadline : '';
       out = {
         title: typeof parsed.title === 'string' ? parsed.title.slice(0, 70) : '',
         suggestSupport: !!parsed.suggestSupport,
         suggestEligibility: !!parsed.suggestEligibility,
+        deadline: iso,
+        deadlineLabel: iso && typeof parsed.deadlineLabel === 'string' ? parsed.deadlineLabel.slice(0, 40) : '',
       };
     } catch {
       /* defaults */

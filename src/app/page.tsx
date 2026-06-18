@@ -5,6 +5,9 @@ import { Sun, Moon, Upload, Sparkles, Paperclip, X, Check, MapPin } from 'lucide
 import SupportMap from '@/components/SupportMap';
 import EligibilityFinder from '@/components/EligibilityFinder';
 import ThinkingProcess from '@/components/ThinkingProcess';
+import ReadabilityCard from '@/components/ReadabilityCard';
+import DeadlineBanner from '@/components/DeadlineBanner';
+import ShareSummary from '@/components/ShareSummary';
 import { PRESET_DATA } from '@/lib/data';
 import { useDocument, ChatMessage, type DocumentCategory } from '@/context/DocumentContext';
 import { useAuth } from '@/context/AuthContext';
@@ -29,6 +32,7 @@ export default function Home() {
     setDocumentAnnotations,
     documentMeta,
     setDocumentMeta,
+    threads,
     currentThreadId,
     setCurrentThreadId,
     refreshThreads,
@@ -188,6 +192,8 @@ export default function Home() {
           const meta = {
             suggestSupport: !!m.suggestSupport,
             suggestEligibility: !!m.suggestEligibility,
+            deadline: m.deadline || '',
+            deadlineLabel: m.deadlineLabel || '',
           };
           setDocumentMeta(meta);
           if (threadId) {
@@ -389,6 +395,26 @@ export default function Home() {
               </p>
             </section>
 
+            {/* Meet Maria — a specific person, one click to see ENVIS help her */}
+            <button
+              type="button"
+              onClick={() => handlePresetClick('food')}
+              className="group w-full max-w-xl mx-auto flex items-center gap-4 text-left bg-surface dark:bg-surface border border-mist dark:border-mist rounded-3xl p-4 md:p-5 shadow-calm hover:shadow-calm-hover hover:-translate-y-0.5 transition-all duration-300"
+            >
+              <div className="w-12 h-12 rounded-full bg-soft-clay/25 flex items-center justify-center flex-shrink-0 font-serif font-bold text-lg text-deep-pine dark:text-soft-clay">
+                M
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-sans text-sm text-ink dark:text-ink leading-relaxed">
+                  <span className="font-semibold text-deep-pine dark:text-calm-sage">Meet Maria.</span> She's a single mom who just got a food-assistance notice she can't make sense of — and a deadline she can't afford to miss.
+                </p>
+                <span className="inline-flex items-center gap-1 mt-1.5 text-xs font-semibold text-deep-pine dark:text-calm-sage group-hover:gap-2 transition-all">
+                  See how ENVIS helps her
+                  <span aria-hidden>→</span>
+                </span>
+              </div>
+            </button>
+
             {/* Unified Input Card */}
             <form
               onSubmit={handleSubmit}
@@ -511,6 +537,17 @@ export default function Home() {
         {/* ── AFTER CHAT: The conversational advisor ── */}
         {hasStartedChat && (
           <div className="space-y-6 animate-fade-in mt-4">
+            {/* Calm deadline countdown, if the document has a hard date */}
+            {documentMeta?.deadline && (
+              <DeadlineBanner deadline={documentMeta.deadline} label={documentMeta.deadlineLabel} />
+            )}
+
+            {/* "We made it simpler" — readability before → after */}
+            <ReadabilityCard
+              originalText={documentText || (documentAnnotations?.lines || []).map((l: any) => l.text).join(' ') || ''}
+              plainText={conversationHistory.find((m) => m.role === 'assistant')?.content || ''}
+            />
+
             {documentImageUrl && documentImageUrl.startsWith('data:image') && (
               <AnnotatedDocument
                 imageUrl={documentImageUrl}
@@ -569,6 +606,16 @@ export default function Home() {
                   See what you qualify for
                 </button>
               )
+            )}
+
+            {/* Save / share a one-pager (PDF + QR) */}
+            {conversationHistory.some((m) => m.role === 'assistant') && (
+              <ShareSummary
+                title={threads.find((t) => t.id === currentThreadId)?.title || 'Your document, explained'}
+                analysis={conversationHistory.find((m) => m.role === 'assistant')?.content || ''}
+                deadline={documentMeta?.deadline}
+                deadlineLabel={documentMeta?.deadlineLabel}
+              />
             )}
           </div>
         )}

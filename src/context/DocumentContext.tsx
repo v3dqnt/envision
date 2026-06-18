@@ -18,6 +18,13 @@ export interface ChatMessage {
   content: string;
 }
 
+export interface DocumentMeta {
+  suggestSupport?: boolean;
+  suggestEligibility?: boolean;
+  deadline?: string; // ISO date
+  deadlineLabel?: string;
+}
+
 interface DocumentContextType {
   documentCategory: DocumentCategory;
   setDocumentCategory: (category: DocumentCategory) => void;
@@ -31,8 +38,8 @@ interface DocumentContextType {
   documentAnnotations: any | null;
   setDocumentAnnotations: (data: any | null) => void;
   // Per-document meta: which help tools are relevant to this problem
-  documentMeta: { suggestSupport?: boolean; suggestEligibility?: boolean } | null;
-  setDocumentMeta: (data: { suggestSupport?: boolean; suggestEligibility?: boolean } | null) => void;
+  documentMeta: DocumentMeta | null;
+  setDocumentMeta: (data: DocumentMeta | null) => void;
   // Threads (each thread keeps its own document + conversation memory)
   threads: Thread[];
   currentThreadId: string | null;
@@ -40,9 +47,6 @@ interface DocumentContextType {
   refreshThreads: () => Promise<void>;
   loadThread: (id: string) => Promise<void>;
   startNewThread: () => void;
-  // Legacy support
-  analysisResult: any;
-  setAnalysisResult: (result: any) => void;
 }
 
 const DocumentContext = createContext<DocumentContextType | undefined>(undefined);
@@ -53,11 +57,9 @@ export function DocumentProvider({ children }: { children: React.ReactNode }) {
   const [documentText, setDocumentText] = useState<string | null>(null);
   const [documentImageUrl, setDocumentImageUrl] = useState<string | null>(null);
   const [documentAnnotations, setDocumentAnnotations] = useState<any | null>(null);
-  const [documentMeta, setDocumentMeta] = useState<{ suggestSupport?: boolean; suggestEligibility?: boolean } | null>(null);
+  const [documentMeta, setDocumentMeta] = useState<DocumentMeta | null>(null);
   const [threads, setThreads] = useState<Thread[]>([]);
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
-  // Legacy
-  const [analysisResult, setAnalysisResult] = useState<any>(null);
 
   const refreshThreads = useCallback(async () => {
     const list = await listThreads();
@@ -107,8 +109,6 @@ export function DocumentProvider({ children }: { children: React.ReactNode }) {
       refreshThreads,
       loadThread,
       startNewThread,
-      analysisResult,
-      setAnalysisResult,
     }}>
       {children}
     </DocumentContext.Provider>

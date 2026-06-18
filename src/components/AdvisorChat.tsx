@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { gsap } from 'gsap';
-import { Send, Sparkles, User, RotateCcw, PenLine, Languages, Paperclip, X, FileText, Scale } from 'lucide-react';
+import { Send, Sparkles, User, RotateCcw, PenLine, Languages, Paperclip, X, FileText, Scale, Type } from 'lucide-react';
 import { ChatMessage } from '@/context/DocumentContext';
 import ResponseDraft from '@/components/ResponseDraft';
 
@@ -25,7 +25,16 @@ interface AdvisorChatProps {
   researching?: boolean;
 }
 
-const LANGUAGES = ['English', 'Tamil', 'Hindi', 'Telugu', 'Bengali', 'Spanish', 'French', 'Arabic'];
+const LANGUAGES = ['English', 'Simple English', 'Spanish', 'Tamil', 'Hindi', 'Telugu', 'Bengali', 'French', 'Arabic', 'Chinese'];
+
+// Map a browser language code (e.g. "es-MX") to one of our supported languages.
+const BROWSER_LANG: Record<string, string> = {
+  es: 'Spanish', ta: 'Tamil', hi: 'Hindi', te: 'Telugu', bn: 'Bengali', fr: 'French', ar: 'Arabic', zh: 'Chinese',
+};
+const NATIVE_LABEL: Record<string, string> = {
+  Spanish: 'Ver en español', Tamil: 'தமிழில் காண்க', Hindi: 'हिंदी में देखें', Telugu: 'తెలుగులో చూడండి',
+  Bengali: 'বাংলায় দেখুন', French: 'Voir en français', Arabic: 'عرض بالعربية', Chinese: '用中文查看',
+};
 
 // Simple markdown renderer for the AI messages
 function renderMarkdown(text: string) {
@@ -88,6 +97,8 @@ export default function AdvisorChat({ history, onSend, loading, onReset, documen
   const [translations, setTranslations] = useState<Record<string, string>>({});
   const [translating, setTranslating] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [readable, setReadable] = useState(false); // larger, easier-to-read text
+  const [suggestedLang, setSuggestedLang] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -115,6 +126,10 @@ export default function AdvisorChat({ history, onSend, loading, onReset, documen
     if (!reduced.current && inputBarRef.current) {
       gsap.from(inputBarRef.current, { y: 16, opacity: 0, duration: 0.5, ease: 'power2.out' });
     }
+    // Offer the user's own language if the browser hints at a non-English one.
+    const code = (navigator.language || '').slice(0, 2).toLowerCase();
+    const lang = BROWSER_LANG[code];
+    if (lang) setSuggestedLang(lang);
   }, []);
 
   useEffect(() => {
@@ -239,6 +254,18 @@ export default function AdvisorChat({ history, onSend, loading, onReset, documen
               Draft
             </button>
           )}
+          {/* Readable / larger-text toggle (accessibility) */}
+          <button
+            type="button"
+            onClick={() => setReadable((r) => !r)}
+            aria-pressed={readable}
+            title="Easier-to-read text"
+            className={`flex items-center gap-1 text-xs font-semibold rounded-full px-2.5 py-1.5 transition-all duration-200 font-sans ${
+              readable ? 'bg-calm-sage/20 text-deep-pine dark:text-calm-sage' : 'text-ink/70 dark:text-ink/70 hover:bg-warm-sand/60 dark:hover:bg-mist/30'
+            }`}
+          >
+            <Type className="w-3.5 h-3.5" />
+          </button>
           {/* Language selector */}
           <div className="relative flex items-center">
             <Languages className="w-3.5 h-3.5 text-ink/50 absolute left-2.5 pointer-events-none" />
@@ -265,10 +292,23 @@ export default function AdvisorChat({ history, onSend, loading, onReset, documen
         </div>
       </div>
 
+      {/* Offer the reader's own language (browser-detected) */}
+      {suggestedLang && language !== suggestedLang && (
+        <button
+          type="button"
+          onClick={() => { setLanguage(suggestedLang); setSuggestedLang(null); }}
+          className="mb-3 flex items-center justify-center gap-2 w-full text-xs font-semibold text-deep-pine dark:text-calm-sage bg-calm-sage/15 hover:bg-calm-sage/25 rounded-2xl py-2.5 transition-colors font-sans"
+        >
+          <Languages className="w-3.5 h-3.5" />
+          {NATIVE_LABEL[suggestedLang] || `View in ${suggestedLang}`}
+          <span className="opacity-60">· tap to translate</span>
+        </button>
+      )}
+
       {/* The box — messages + floating input, no header/chin inside */}
       <div className="flex flex-col bg-surface/50 dark:bg-surface/40 backdrop-blur-md rounded-[28px] shadow-calm border border-mist/40 dark:border-mist/25 p-3 md:p-4">
       {/* Messages */}
-      <div ref={listRef} className="flex flex-col gap-5 px-1 py-1 max-h-[52vh] overflow-y-auto scroll-smooth">
+      <div ref={listRef} className={`flex flex-col gap-5 px-1 py-1 max-h-[52vh] overflow-y-auto scroll-smooth ${readable ? '[&_p]:!text-base [&_span]:!text-base [&_li]:!text-base [&_*]:!leading-loose tracking-[0.015em]' : ''}`}>
         {history.map((msg, idx) => {
           const translated = language !== 'English' ? translations[`${idx}::${language}`] : undefined;
           const content = translated ?? msg.content;

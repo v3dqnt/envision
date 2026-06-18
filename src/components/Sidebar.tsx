@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { FileSearch, ShieldAlert, ListTodo, Sun, Moon, Plus, MessageSquare, LogOut, Trash2 } from "lucide-react";
+import { FileSearch, ListTodo, Sun, Moon, Plus, MessageSquare, LogOut, Trash2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useDocument } from "@/context/DocumentContext";
 import { deleteThread } from "@/lib/threads";
@@ -45,7 +45,6 @@ export function Sidebar() {
 
   const features = [
     { name: 'Document Decoder', icon: FileSearch, href: '/' },
-    { name: 'Crisis Solver', icon: ShieldAlert, href: '/crisis-solver' },
     { name: 'Reminders & Todo Lists', icon: ListTodo, href: '/reminders' },
   ];
 

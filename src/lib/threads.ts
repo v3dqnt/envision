@@ -11,7 +11,7 @@ export interface Thread {
   document_text: string | null;
   document_image_url: string | null;
   annotations: any | null; // cached OCR + meanings so we don't recompute
-  meta: { title?: string; suggestSupport?: boolean; suggestEligibility?: boolean } | null;
+  meta: { title?: string; suggestSupport?: boolean; suggestEligibility?: boolean; deadline?: string; deadlineLabel?: string } | null;
   created_at: string;
   updated_at: string;
 }
