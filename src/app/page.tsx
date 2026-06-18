@@ -8,9 +8,10 @@ import ThinkingProcess from '@/components/ThinkingProcess';
 import ReadabilityCard from '@/components/ReadabilityCard';
 import DeadlineBanner from '@/components/DeadlineBanner';
 import ShareSummary from '@/components/ShareSummary';
-import { PRESET_DATA } from '@/lib/data';
+import { SCENARIOS, type Scenario } from '@/lib/data';
 import { useDocument, ChatMessage, type DocumentCategory } from '@/context/DocumentContext';
 import { useAuth } from '@/context/AuthContext';
+import { profileSummary } from '@/lib/profile';
 import { createThread, addMessage, saveThreadAnnotations, updateThreadMeta } from '@/lib/threads';
 import AdvisorChat, { type Attachment } from '@/components/AdvisorChat';
 import AnnotatedDocument from '@/components/AnnotatedDocument';
@@ -39,7 +40,8 @@ export default function Home() {
     startNewThread,
   } = useDocument();
 
-  const { user, configured, session } = useAuth();
+  const { user, configured, session, profile } = useAuth();
+  const userProfile = profileSummary(profile);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [showSupport, setShowSupport] = useState(false);
   const [showEligibility, setShowEligibility] = useState(false);
@@ -132,14 +134,14 @@ export default function Home() {
   });
 
   // Initial analysis — sends document to API and gets first AI message
-  const startConversation = async (text?: string, imageUrl?: string) => {
+  const startConversation = async (text?: string, imageUrl?: string, categoryOverride?: DocumentCategory) => {
     setLoading(true);
     setShowSupport(false);
     setShowEligibility(false);
     setDocumentMeta(null);
 
     try {
-      const category = text ? detectCategory(text) : documentCategory;
+      const category = categoryOverride || (text ? detectCategory(text) : documentCategory);
       setDocumentText(text || null);
       setDocumentImageUrl(imageUrl || null);
 
@@ -167,6 +169,7 @@ export default function Home() {
           documentImageUrl: imageUrl || undefined,
           accessToken: session?.access_token,
           threadId,
+          userProfile,
         }),
       });
 
@@ -265,6 +268,7 @@ export default function Home() {
           accessToken: session?.access_token,
           threadId: currentThreadId,
           attachments,
+          userProfile,
         }),
       });
 
@@ -340,10 +344,29 @@ export default function Home() {
     }
   };
 
-  const handlePresetClick = (category: keyof typeof PRESET_DATA) => {
-    setDocumentCategory(category);
-    setInputText(PRESET_DATA[category].text);
-    startConversation(PRESET_DATA[category].text);
+  // Load a demo scenario: try the real document image first (runs the OCR +
+  // annotation pipeline); fall back to the text if the image isn't present.
+  const handleScenarioClick = async (s: Scenario) => {
+    setDocumentCategory(s.category);
+    try {
+      const res = await fetch(s.image);
+      if (res.ok) {
+        const blob = await res.blob();
+        if (blob.type.startsWith('image/')) {
+          const base64: string = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+          startConversation(undefined, base64, s.category);
+          return;
+        }
+      }
+    } catch {
+      /* fall through to text */
+    }
+    startConversation(s.text, undefined, s.category);
   };
 
   if (!mounted) {
@@ -387,7 +410,7 @@ export default function Home() {
         {!hasStartedChat && (
           <div className="space-y-10">
             <section className="text-center space-y-5 max-w-xl mx-auto">
-              <h1 className="font-serif text-4xl md:text-5xl font-bold tracking-tight text-deep-pine dark:text-calm-sage leading-tight">
+              <h1 className="font-serif text-5xl md:text-6xl font-medium tracking-tight text-deep-pine dark:text-calm-sage leading-[0.95]">
                 Take a breath.
               </h1>
               <p className="font-sans text-lg text-ink dark:text-ink leading-relaxed max-w-md mx-auto">
@@ -395,25 +418,6 @@ export default function Home() {
               </p>
             </section>
 
-            {/* Meet Maria — a specific person, one click to see ENVIS help her */}
-            <button
-              type="button"
-              onClick={() => handlePresetClick('food')}
-              className="group w-full max-w-xl mx-auto flex items-center gap-4 text-left bg-surface dark:bg-surface border border-mist dark:border-mist rounded-3xl p-4 md:p-5 shadow-calm hover:shadow-calm-hover hover:-translate-y-0.5 transition-all duration-300"
-            >
-              <div className="w-12 h-12 rounded-full bg-soft-clay/25 flex items-center justify-center flex-shrink-0 font-serif font-bold text-lg text-deep-pine dark:text-soft-clay">
-                M
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-sans text-sm text-ink dark:text-ink leading-relaxed">
-                  <span className="font-semibold text-deep-pine dark:text-calm-sage">Meet Maria.</span> She's a single mom who just got a food-assistance notice she can't make sense of — and a deadline she can't afford to miss.
-                </p>
-                <span className="inline-flex items-center gap-1 mt-1.5 text-xs font-semibold text-deep-pine dark:text-calm-sage group-hover:gap-2 transition-all">
-                  See how ENVIS helps her
-                  <span aria-hidden>→</span>
-                </span>
-              </div>
-            </button>
 
             {/* Unified Input Card */}
             <form
@@ -501,27 +505,33 @@ export default function Home() {
               </div>
             </form>
 
-            {/* Preset Samples */}
+            {/* Demo scenarios — load a real document and run the analysis */}
             <section className="space-y-4">
-              <h2 className="text-xs font-semibold tracking-wider uppercase text-ink dark:text-ink text-center font-sans">
+              <h2 className="text-xs font-semibold tracking-wider uppercase text-ink dark:text-ink text-center font-sans opacity-80">
                 Try a sample document
               </h2>
-              <div className="flex flex-wrap justify-center gap-3">
-                {([
-                  { key: 'school',   label: 'School Notice',    testId: 'preset-doc-school' },
-                  { key: 'food',     label: 'Food Assistance',  testId: 'preset-doc-food' },
-                  { key: 'medical',  label: 'Medical Bill',     testId: 'preset-doc-medical' },
-                  { key: 'eviction', label: 'Eviction Warning', testId: 'preset-doc-eviction' },
-                  { key: 'debt',     label: 'Debt Collection',  testId: 'preset-doc-debt' },
-                ] as const).map(({ key, label, testId }) => (
+              <div className="grid sm:grid-cols-3 gap-3">
+                {SCENARIOS.map((s) => (
                   <button
-                    key={key}
+                    key={s.id}
                     type="button"
-                    data-testid={testId}
-                    onClick={() => handlePresetClick(key)}
-                    className="px-5 py-2.5 rounded-full text-sm font-semibold border border-mist dark:border-mist bg-paper dark:bg-surface hover:bg-warm-sand dark:hover:bg-mist hover:border-calm-sage dark:hover:border-calm-sage text-deep-pine dark:text-ink transition-all duration-200 shadow-sm hover:shadow active:scale-[0.98] font-sans"
+                    data-testid={`scenario-${s.id}`}
+                    onClick={() => handleScenarioClick(s)}
+                    className="group text-left bg-surface dark:bg-surface border border-mist dark:border-mist rounded-2xl p-4 shadow-calm hover:shadow-calm-hover hover:-translate-y-0.5 transition-all duration-300"
                   >
-                    {label}
+                    <div className="flex items-center gap-2.5 mb-2.5">
+                      <div className="w-9 h-9 rounded-full bg-calm-sage/25 flex items-center justify-center flex-shrink-0 font-serif font-bold text-deep-pine dark:text-calm-sage">
+                        {s.name.charAt(0)}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm text-deep-pine dark:text-calm-sage leading-tight">{s.name}</p>
+                        <p className="text-2xs uppercase tracking-wider text-ink/50 font-sans">{s.docType}</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-ink/80 dark:text-ink/80 font-sans leading-relaxed">{s.blurb}</p>
+                    <span className="inline-flex items-center gap-1 mt-2.5 text-xs font-semibold text-deep-pine dark:text-calm-sage group-hover:gap-2 transition-all">
+                      See how ENVIS helps <span aria-hidden>→</span>
+                    </span>
                   </button>
                 ))}
               </div>
@@ -577,6 +587,7 @@ export default function Home() {
                 <SupportMap
                   category={documentCategory}
                   analysis={conversationHistory.find((m) => m.role === 'assistant')?.content}
+                  defaultLocation={profile?.location || undefined}
                 />
               ) : (
                 <button

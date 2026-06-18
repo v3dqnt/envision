@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Sparkles, ExternalLink, RefreshCw, BadgeCheck } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 interface EligibilityFinderProps {
   documentText: string | null;
@@ -27,11 +28,18 @@ const LIKELIHOOD: Record<Program['likelihood'], { label: string; bg: string; fg:
 };
 
 export default function EligibilityFinder({ documentText, analysis, category }: EligibilityFinderProps) {
+  const { profile } = useAuth();
   const [region, setRegion] = useState('');
   const [situations, setSituations] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [programs, setPrograms] = useState<Program[] | null>(null);
   const [detectedRegion, setDetectedRegion] = useState('');
+
+  // Prefill from the user's saved profile so they don't re-enter it.
+  useEffect(() => {
+    if (profile?.location) setRegion((r) => r || profile.location || '');
+    if (profile?.situations?.length) setSituations((s) => (s.length ? s : profile.situations || []));
+  }, [profile]);
 
   const toggle = (s: string) =>
     setSituations((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
@@ -42,7 +50,14 @@ export default function EligibilityFinder({ documentText, analysis, category }: 
       const res = await fetch('/api/eligibility', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ documentText, analysis, region, situations }),
+        body: JSON.stringify({
+          documentText,
+          analysis,
+          region,
+          situations,
+          householdSize: profile?.household_size ?? undefined,
+          incomeBand: profile?.income_band ?? undefined,
+        }),
       });
       const data = await res.json();
       if (Array.isArray(data.programs)) {

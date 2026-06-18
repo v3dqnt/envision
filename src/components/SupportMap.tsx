@@ -7,6 +7,7 @@ import { MapPin, Navigation, Search, AlertCircle } from 'lucide-react';
 interface SupportMapProps {
   category: string; // document category, picks which resources to look for
   analysis?: string; // advisor analysis, so the planner can refine the search
+  defaultLocation?: string; // from the user's profile, used if geolocation fails
 }
 
 interface Place {
@@ -92,36 +93,38 @@ function haversineKm(aLat: number, aLon: number, bLat: number, bLon: number): nu
 
 type Status = 'idle' | 'locating' | 'needLocation' | 'loading' | 'ready' | 'error';
 
-export default function SupportMap({ category, analysis }: SupportMapProps) {
+export default function SupportMap({ category, analysis, defaultLocation }: SupportMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const sdkRef = useRef<any>(null);
   const [status, setStatus] = useState<Status>('locating');
   const [places, setPlaces] = useState<Place[]>([]);
-  const [manualPlace, setManualPlace] = useState('');
+  const [manualPlace, setManualPlace] = useState(defaultLocation || '');
   const key = process.env.NEXT_PUBLIC_MAPTILER_API_KEY;
 
-  // Try the browser's location first.
+  // Try the browser's location first; fall back to the user's saved location.
   useEffect(() => {
+    const fallback = () => (defaultLocation ? geocodeAndBoot(defaultLocation) : setStatus('needLocation'));
     if (!navigator.geolocation) {
-      setStatus('needLocation');
+      fallback();
       return;
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => boot(pos.coords.latitude, pos.coords.longitude),
-      () => setStatus('needLocation'),
+      fallback,
       { timeout: 8000 }
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Resolve a typed place name → coordinates via MapTiler geocoding.
-  const geocodeAndBoot = async () => {
-    if (!manualPlace.trim() || !key) return;
+  const geocodeAndBoot = async (place?: string) => {
+    const q = (place ?? manualPlace).trim();
+    if (!q || !key) return;
     setStatus('locating');
     try {
       const res = await fetch(
-        `https://api.maptiler.com/geocoding/${encodeURIComponent(manualPlace)}.json?key=${key}&limit=1`
+        `https://api.maptiler.com/geocoding/${encodeURIComponent(q)}.json?key=${key}&limit=1`
       );
       const data = await res.json();
       const center = data.features?.[0]?.center;
@@ -267,7 +270,7 @@ export default function SupportMap({ category, analysis }: SupportMapProps) {
               placeholder="City, neighborhood, or ZIP…"
               className="flex-1 bg-transparent text-sm text-ink dark:text-ink font-sans focus:outline-none placeholder:text-ink/40"
             />
-            <button onClick={geocodeAndBoot} className="text-xs font-semibold bg-deep-pine dark:bg-calm-sage text-paper dark:text-deep-pine rounded-full px-4 py-2 hover:opacity-90 transition-opacity font-sans">
+            <button onClick={() => geocodeAndBoot()} className="text-xs font-semibold bg-deep-pine dark:bg-calm-sage text-paper dark:text-deep-pine rounded-full px-4 py-2 hover:opacity-90 transition-opacity font-sans">
               Find
             </button>
           </div>

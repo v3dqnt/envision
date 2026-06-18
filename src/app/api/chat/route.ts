@@ -125,7 +125,7 @@ MEMORY: You remember the whole conversation. Follow-ups get answers specific to 
 
 export async function POST(req: Request) {
   try {
-    const { messages, documentText, documentImageUrl, accessToken, threadId, attachments } = await req.json();
+    const { messages, documentText, documentImageUrl, accessToken, threadId, attachments, userProfile } = await req.json();
 
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json({ error: 'Messages array is required' }, { status: 400 });
@@ -138,6 +138,15 @@ export async function POST(req: Request) {
     const openaiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       { role: 'system', content: SYSTEM_PROMPT },
     ];
+
+    // Personalization: the user's own provided profile, used to localize and
+    // tailor — never to make decisions for them.
+    if (typeof userProfile === 'string' && userProfile.trim()) {
+      openaiMessages.push({
+        role: 'system',
+        content: `About the person you're helping (details THEY chose to share — use them to localize prices/laws and tailor your advice; don't assume beyond this): ${userProfile.trim()}`,
+      });
+    }
 
     const isFirstTurn = messages.length === 0;
 

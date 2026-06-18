@@ -21,7 +21,7 @@ const EligibilitySchema = z.object({
 
 export async function POST(req: Request) {
   try {
-    const { documentText, analysis, region, situations } = await req.json();
+    const { documentText, analysis, region, situations, householdSize, incomeBand } = await req.json();
 
     const completion = await openai.chat.completions.parse({
       model: ANALYZE_MODEL,
@@ -43,6 +43,8 @@ Rules:
         {
           role: 'user',
           content: `Region (if provided): ${region || '(infer from document)'}
+Household size: ${householdSize || '(not provided)'}
+Rough monthly income: ${incomeBand || '(not provided)'}
 Things the person says apply to them: ${Array.isArray(situations) && situations.length ? situations.join(', ') : '(none provided)'}
 
 DOCUMENT:

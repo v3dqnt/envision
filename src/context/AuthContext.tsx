@@ -3,12 +3,15 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client';
+import { getProfile, type Profile } from '@/lib/profile';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
   configured: boolean;
+  profile: Profile | null;
+  refreshProfile: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
@@ -20,6 +23,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<Profile | null>(null);
+
+  const refreshProfile = async () => {
+    setProfile(await getProfile());
+  };
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -31,11 +39,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(data.session);
       setUser(data.session?.user ?? null);
       setLoading(false);
+      if (data.session?.user) refreshProfile();
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
       setUser(newSession?.user ?? null);
+      if (newSession?.user) refreshProfile();
+      else setProfile(null);
     });
 
     return () => sub.subscription.unsubscribe();
@@ -61,7 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, session, loading, configured: isSupabaseConfigured, signIn, signUp, signOut }}
+      value={{ user, session, loading, configured: isSupabaseConfigured, profile, refreshProfile, signIn, signUp, signOut }}
     >
       {children}
     </AuthContext.Provider>

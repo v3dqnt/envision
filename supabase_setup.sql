@@ -6,11 +6,25 @@
 -- 1. PROFILES — one row per user, auto-created on signup
 -- ─────────────────────────────────────────────────────────────
 create table if not exists public.profiles (
-  id         uuid primary key references auth.users on delete cascade,
-  email      text,
-  full_name  text,
-  created_at timestamptz not null default now()
+  id                 uuid primary key references auth.users on delete cascade,
+  email              text,
+  full_name          text,
+  location           text,        -- city / state / country, for localizing search
+  preferred_language text,
+  household_size     int,
+  income_band        text,        -- a rough band, never an exact figure
+  situations         jsonb,       -- e.g. ["Have children","Unemployed"]
+  about              text,        -- free-text "anything else we should know"
+  created_at         timestamptz not null default now()
 );
+
+-- For databases created before the profile fields existed:
+alter table public.profiles add column if not exists location text;
+alter table public.profiles add column if not exists preferred_language text;
+alter table public.profiles add column if not exists household_size int;
+alter table public.profiles add column if not exists income_band text;
+alter table public.profiles add column if not exists situations jsonb;
+alter table public.profiles add column if not exists about text;
 
 alter table public.profiles enable row level security;
 

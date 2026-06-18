@@ -25,9 +25,11 @@ const config: Config = {
       },
       fontFamily: {
         inter: ["var(--font-inter)", "sans-serif"],
-        fraunces: ["var(--font-fraunces)", "serif"],
+        display: ["var(--font-display)", "sans-serif"],
         sans: ["var(--font-inter)", "sans-serif"],
-        serif: ["var(--font-fraunces)", "serif"],
+        // `font-serif` is used widely for headings — repoint it to the rounded
+        // display face (Clay-style) so existing markup picks up the new type.
+        serif: ["var(--font-display)", "sans-serif"],
       },
       fontSize: {
         '2xs': ['0.65rem', { lineHeight: '1rem' }],

@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
-import { Fraunces, Inter } from "next/font/google";
+import { Bricolage_Grotesque, Inter } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/Sidebar";
 import { DocumentProvider } from "@/context/DocumentContext";
 import { AuthProvider } from "@/context/AuthContext";
 import AuthGate from "@/components/AuthGate";
 
-const fraunces = Fraunces({
+const display = Bricolage_Grotesque({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-fraunces",
+  variable: "--font-display",
 });
 
 const inter = Inter({
@@ -29,7 +29,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${fraunces.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${display.variable}`} suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{

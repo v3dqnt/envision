@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import Tesseract from 'tesseract.js';
-import { Sparkles, Info, AlertCircle, KeyRound } from 'lucide-react';
+import { Sparkles, Info, AlertCircle, KeyRound, ZoomIn, X } from 'lucide-react';
 
 export interface AnnotationData {
   natural: { w: number; h: number };
@@ -42,6 +42,7 @@ export default function AnnotatedDocument({ imageUrl, analysisContext, saved, on
   const [phase, setPhase] = useState<Phase>('reading');
   const [activeId, setActiveId] = useState<string | null>(null); // hovered or tapped
   const [pinnedId, setPinnedId] = useState<string | null>(null); // tapped (sticky)
+  const [zoomed, setZoomed] = useState(false); // full-screen preview of the exact input
   const cancelled = useRef(false);
 
   useEffect(() => {
@@ -130,7 +131,8 @@ export default function AnnotatedDocument({ imageUrl, analysisContext, saved, on
   const shown = lines.find((l) => l.id === shownId) || null;
   const flagCount = lines.filter((l) => l.importance === 'review').length;
 
-  if (phase === 'error') return null; // Fail quietly — the chat still has the full analysis.
+  // Even if OCR/annotation fails, we still show the exact image we sent to the
+  // AI — so a viewer can always verify what ENVIS actually read.
 
   return (
     <div className="bg-surface dark:bg-surface rounded-3xl shadow-calm overflow-hidden">
@@ -141,12 +143,14 @@ export default function AnnotatedDocument({ imageUrl, analysisContext, saved, on
             <Sparkles className="w-4 h-4 text-deep-pine dark:text-calm-sage" />
           </div>
           <div>
-            <p className="font-serif font-bold text-sm text-deep-pine dark:text-calm-sage">Your document, explained</p>
+            <p className="font-serif font-bold text-sm text-deep-pine dark:text-calm-sage">The document ENVIS read</p>
             <p className="text-2xs font-sans text-ink dark:text-ink opacity-70">
               {phase === 'ready'
-                ? 'Hover a highlighted line to see what it means'
+                ? 'Hover a highlighted line — or click the image to enlarge'
                 : phase === 'explaining'
                 ? 'Working out what each line means…'
+                : phase === 'error'
+                ? 'Click the image to enlarge and read it in full'
                 : 'Reading the document…'}
             </p>
           </div>
@@ -165,9 +169,24 @@ export default function AnnotatedDocument({ imageUrl, analysisContext, saved, on
       <div className="px-4 md:px-6 pb-5 space-y-4">
         {/* Image with overlay */}
         <div className="relative inline-block w-full" onMouseLeave={() => setActiveId(null)}>
-          <img src={imageUrl} alt="Your uploaded document" className="w-full h-auto rounded-2xl border border-mist dark:border-mist select-none" />
+          <img
+            src={imageUrl}
+            alt="The exact document sent to ENVIS"
+            onClick={() => setZoomed(true)}
+            className="w-full h-auto rounded-2xl border border-mist dark:border-mist select-none cursor-zoom-in"
+          />
 
-          {phase !== 'ready' && (
+          {/* Enlarge hint */}
+          <button
+            type="button"
+            onClick={() => setZoomed(true)}
+            className="absolute top-2.5 right-2.5 z-30 flex items-center gap-1.5 text-2xs font-semibold bg-paper/90 dark:bg-surface/90 backdrop-blur text-deep-pine dark:text-calm-sage rounded-full px-2.5 py-1.5 shadow-calm hover:shadow-calm-hover transition-all"
+            aria-label="Enlarge document"
+          >
+            <ZoomIn className="w-3.5 h-3.5" /> Enlarge
+          </button>
+
+          {(phase === 'reading' || phase === 'explaining') && (
             <div className="absolute inset-0 rounded-2xl bg-paper/50 dark:bg-paper/60 backdrop-blur-[1px] flex items-center justify-center">
               <div className="flex flex-col items-center gap-3">
                 <div className="w-14 h-14 rounded-full bg-calm-sage flex items-center justify-center animate-breathing">
@@ -265,6 +284,29 @@ export default function AnnotatedDocument({ imageUrl, analysisContext, saved, on
           </div>
         )}
       </div>
+
+      {/* Full-screen preview — judges/viewers can read the exact input */}
+      {zoomed && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/85 flex items-center justify-center p-4 animate-fade-in cursor-zoom-out"
+          onClick={() => setZoomed(false)}
+        >
+          <button
+            type="button"
+            className="absolute top-4 right-4 text-white/80 hover:text-white"
+            onClick={() => setZoomed(false)}
+            aria-label="Close preview"
+          >
+            <X className="w-7 h-7" />
+          </button>
+          <img
+            src={imageUrl}
+            alt="The exact document sent to ENVIS, full size"
+            className="max-w-full max-h-[92vh] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }

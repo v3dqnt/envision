@@ -3,35 +3,37 @@
 @tailwind utilities;
 
 @layer base {
+  /* Clay-inspired: cream canvas, near-black primary, warm accent palette.
+     Variable names kept so every component inherits the new look. */
   :root {
-    --calm-sage: #7FA99B;
-    --deep-pine: #2E4F4A;
-    --warm-sand: #EAE3D6;
-    --soft-clay: #D9A283;
-    --sky-mist: #A9C5CE;
-    --paper: #FAF7F2;
-    --surface: #EAE3D6; /* warm-sand cards — brand forbids pure #FFFFFF */
-    --ink: #33403D;
-    --mist: #C9D2CE;
-    --success: #6FAE7E;
-    --attention: #E0B25C;
-    --info: #7FA1B8;
+    --calm-sage: #79C2AB;   /* brand accent (mint-teal) — dark text reads on it */
+    --deep-pine: #16110B;   /* near-black: primary CTAs + headings */
+    --warm-sand: #EFE7D5;   /* hover / emphasized warm surface */
+    --soft-clay: #F0683F;   /* coral accent (links, destructive hovers, draft) */
+    --sky-mist: #B8A4ED;    /* lavender secondary accent */
+    --paper: #F6F0E1;       /* cream canvas — the page floor */
+    --surface: #FFFCF4;     /* lighter cream — cards sit above the canvas */
+    --ink: #20180F;         /* warm near-black body text */
+    --mist: #E7DFCD;        /* warm hairline borders */
+    --success: #1FA86B;
+    --attention: #E3A52E;   /* ochre — deadlines, warnings */
+    --info: #4F7CF0;
     --focus-ring: var(--deep-pine);
   }
 
   .dark, [data-theme="night-calm"] {
-    --calm-sage: #8FBBAC;
-    --deep-pine: #2E4F4A;
-    --warm-sand: #1E2826;
-    --paper: #161E1C;
-    --surface: #1E2826;
-    --ink: #E4E9E6;
-    --mist: #2C3835;
-    --soft-clay: #D9A283;
-    --sky-mist: #A9C5CE;
-    --success: #6FAE7E;
-    --attention: #E0B25C;
-    --info: #7FA1B8;
+    --calm-sage: #8FCFB9;   /* lighter mint on dark */
+    --deep-pine: #0E1A18;   /* dark — text on mint buttons */
+    --warm-sand: #22302C;
+    --paper: #0E1A18;       /* warm teal-dark canvas (Clay surface-dark) */
+    --surface: #182523;
+    --ink: #F0EADC;         /* cream text */
+    --mist: #2A3A35;
+    --soft-clay: #FF8A66;
+    --sky-mist: #C6B6F2;
+    --success: #36CE86;
+    --attention: #F0C56A;
+    --info: #82A4FF;
     --focus-ring: var(--calm-sage);
   }
 
@@ -39,14 +41,17 @@
     background-color: var(--paper);
     color: var(--ink);
     font-family: var(--font-inter), sans-serif;
-    font-size: 17px;
+    font-size: 16px;
     line-height: 1.6;
     transition: background-color 0.3s ease, color 0.3s ease;
   }
 
+  /* Rounded display type, Clay-style: weight 500-600 + negative letter-spacing. */
   h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-fraunces), serif;
+    font-family: var(--font-display), "Inter", sans-serif;
+    letter-spacing: -0.02em;
   }
+  h1 { letter-spacing: -0.035em; }
 
   *:focus-visible {
     outline: 2px solid var(--focus-ring);
