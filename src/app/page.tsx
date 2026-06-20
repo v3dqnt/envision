@@ -145,67 +145,113 @@ export default function Home() {
       setDocumentText(text || null);
       setDocumentImageUrl(imageUrl || null);
 
-      // Create the thread first so any reminders/todos the advisor makes link to it.
-      let threadId: string | undefined;
-      if (configured && user) {
-        const thread = await createThread({
-          title: deriveTitle(text, category),
-          category,
-          documentText: text || null,
-          documentImageUrl: imageUrl || null,
-        });
-        if (thread) {
-          threadId = thread.id;
-          setCurrentThreadId(thread.id);
-        }
-      }
+      // Create the thread in parallel so the DB insert (which can carry a large
+      // base64 image) never delays the first streamed token of the analysis.
+      const threadPromise: Promise<string | undefined> =
+        configured && user
+          ? createThread({
+              title: deriveTitle(text, category),
+              category,
+              documentText: text || null,
+              documentImageUrl: imageUrl || null,
+            }).then((thread) => {
+              if (thread) {
+                setCurrentThreadId(thread.id);
+                return thread.id;
+              }
+              return undefined;
+            })
+          : Promise.resolve(undefined);
 
+      // Stream the analysis: tokens render as they arrive, so the advisor starts
+      // "talking" within a second or two instead of after the whole completion.
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [],
+          stream: true,
           documentText: text || undefined,
           documentImageUrl: imageUrl || undefined,
           accessToken: session?.access_token,
-          threadId,
           userProfile,
         }),
       });
 
-      const data = await response.json();
-      if (data.reply) {
-        const firstMessage: ChatMessage = { role: 'assistant', content: data.reply };
-        setConversationHistory([firstMessage]);
-        summarizeCreated(data.created);
+      let full = '';
+      if (response.body) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let started = false;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          full += decoder.decode(value, { stream: true });
+          // First token: drop the loader and switch to the live chat view.
+          if (!started) {
+            started = true;
+            setLoading(false);
+          }
+          setConversationHistory([{ role: 'assistant' as const, content: full }]);
+        }
+      } else {
+        // No streaming support — fall back to reading the whole body.
+        full = await response.text();
+        setLoading(false);
+        setConversationHistory([{ role: 'assistant' as const, content: full }]);
+      }
 
+      const reply = full.trim();
+      if (!reply) return;
+
+      const threadId = await threadPromise;
+
+      // Persist the analysis to the thread's memory.
+      if (threadId) {
+        await addMessage(threadId, { role: 'assistant' as const, content: reply });
+        refreshThreads();
+      }
+
+      // Reminders/todos run in the background — the user is already reading the
+      // analysis, so this never adds to the perceived wait.
+      if (configured && user) {
+        fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            actionsOnly: true,
+            analysis: reply,
+            documentText: text || undefined,
+            threadId,
+            accessToken: session?.access_token,
+          }),
+        })
+          .then((r) => r.json())
+          .then((d) => { summarizeCreated(d.created); if (threadId) refreshThreads(); })
+          .catch((err) => console.error('Action extraction failed:', err));
+      }
+
+      // Content-aware title + which help tools are relevant to this problem.
+      try {
+        const metaRes = await fetch('/api/thread-meta', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ documentText: text, analysis: reply, category }),
+        });
+        const m = await metaRes.json();
+        const meta = {
+          suggestSupport: !!m.suggestSupport,
+          suggestEligibility: !!m.suggestEligibility,
+          deadline: m.deadline || '',
+          deadlineLabel: m.deadlineLabel || '',
+        };
+        setDocumentMeta(meta);
         if (threadId) {
-          await addMessage(threadId, firstMessage);
+          await updateThreadMeta(threadId, { title: m.title || undefined, meta });
           refreshThreads();
         }
-
-        // Content-aware title + which help tools are relevant to this problem.
-        try {
-          const metaRes = await fetch('/api/thread-meta', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ documentText: text, analysis: data.reply, category }),
-          });
-          const m = await metaRes.json();
-          const meta = {
-            suggestSupport: !!m.suggestSupport,
-            suggestEligibility: !!m.suggestEligibility,
-            deadline: m.deadline || '',
-            deadlineLabel: m.deadlineLabel || '',
-          };
-          setDocumentMeta(meta);
-          if (threadId) {
-            await updateThreadMeta(threadId, { title: m.title || undefined, meta });
-            refreshThreads();
-          }
-        } catch {
-          setDocumentMeta(fallbackMeta(category));
-        }
+      } catch {
+        setDocumentMeta(fallbackMeta(category));
       }
     } catch (err) {
       console.error('Failed to start conversation:', err);

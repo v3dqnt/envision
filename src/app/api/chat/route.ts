@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { openai, CHAT_MODEL, tuneParams } from '@/lib/ai';
+import { openai, CHAT_MODEL, ANALYZE_MODEL, ANNOTATE_MODEL, ANALYZE_REASONING_EFFORT, tuneParams } from '@/lib/ai';
 import { createUserClient } from '@/lib/supabase/serverClient';
 
 // Tools the advisor can call to put action items where the user will see them.
@@ -123,17 +123,102 @@ Across all of these: lower the person's anxiety, name what matters most, and poi
 
 MEMORY: You remember the whole conversation. Follow-ups get answers specific to THEIR document, building on what you already figured out — never reset to generic advice.`;
 
+// Extract reminders/todos from a finished analysis and persist them. Runs as a
+// separate, non-blocking pass (after the user already sees the analysis) using
+// a small, fast model, so it never adds to the perceived "Analyze" latency.
+async function extractActions({
+  db,
+  analysis,
+  documentText,
+  threadId,
+}: {
+  db: ReturnType<typeof createUserClient>;
+  analysis?: string;
+  documentText?: string;
+  threadId?: string | null;
+}): Promise<{ reminders: string[]; todos: string[] }> {
+  const created: { reminders: string[]; todos: string[] } = { reminders: [], todos: [] };
+  if (!db || !analysis) return created;
+
+  try {
+    const completion = await openai.chat.completions.create(
+      tuneParams(
+        {
+          model: ANNOTATE_MODEL,
+          tools: TOOLS,
+          tool_choice: 'auto' as const,
+          messages: [
+            {
+              role: 'system',
+              content:
+                'From the advisor analysis below, create the concrete action items. Use create_todo for each recommended next step (max 5, most important first) and create_reminder for any real, dated deadline. Call the tools only — do not write prose.',
+            },
+            {
+              role: 'user',
+              content: `${documentText ? `Document:\n${documentText}\n\n` : ''}Advisor analysis:\n${analysis}`,
+            },
+          ],
+        } as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
+        ANNOTATE_MODEL,
+        0.7,
+        'low',
+      ),
+    );
+
+    const toolCalls = completion.choices[0].message.tool_calls ?? [];
+    for (const tc of toolCalls) {
+      if (tc.type !== 'function') continue;
+      try {
+        const args = JSON.parse(tc.function.arguments || '{}');
+        if (tc.function.name === 'create_reminder') {
+          await db.from('reminders').insert({
+            thread_id: threadId ?? null,
+            title: args.title,
+            due_date: args.due_date ?? null,
+            urgency: args.urgency ?? 'medium',
+          });
+          created.reminders.push(args.title);
+        } else if (tc.function.name === 'create_todo') {
+          await db.from('todos').insert({
+            thread_id: threadId ?? null,
+            task: args.task,
+            rationale: args.rationale ?? null,
+          });
+          created.todos.push(args.task);
+        }
+      } catch (e) {
+        console.error('extractActions tool insert failed:', e);
+      }
+    }
+  } catch (e) {
+    console.error('extractActions failed:', e);
+  }
+
+  return created;
+}
+
 export async function POST(req: Request) {
   try {
-    const { messages, documentText, documentImageUrl, accessToken, threadId, attachments, userProfile } = await req.json();
-
-    if (!messages || !Array.isArray(messages)) {
-      return NextResponse.json({ error: 'Messages array is required' }, { status: 400 });
-    }
+    const { messages, documentText, documentImageUrl, accessToken, threadId, attachments, userProfile, stream, actionsOnly, analysis } =
+      await req.json();
 
     // A user-scoped DB client lets the advisor save reminders/todos for the
     // signed-in user (RLS-safe). Absent it, tools are simply unavailable.
     const db = createUserClient(accessToken);
+
+    // ── Actions-only pass ──────────────────────────────────────────────────
+    // After the streamed analysis is shown to the user, the client calls back
+    // here to extract reminders/todos in the background. This keeps the visible
+    // reply fast (no blocking tool round-trip) while still populating the
+    // Reminders page. Uses a small, cheap model since it's pure extraction.
+    if (actionsOnly) {
+      const created = await extractActions({ db, analysis, documentText, threadId });
+      return NextResponse.json({ created });
+    }
+
+    if (!messages || !Array.isArray(messages)) {
+      return NextResponse.json({ error: 'Messages array is required' }, { status: 400 });
+    }
 
     const openaiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       { role: 'system', content: SYSTEM_PROMPT },
@@ -213,6 +298,63 @@ export async function POST(req: Request) {
         }
       }
       if (parts.length > 1) openaiMessages.push({ role: 'user', content: parts });
+    }
+
+    // ── Streaming path (the initial "Analyze" pass) ────────────────────────
+    // Stream tokens straight to the client so text appears within a second or
+    // two instead of after the whole completion. We deliberately DON'T attach
+    // tools here: tool calls would force a second, blocking model pass before
+    // any text is produced. Reminders/todos are extracted afterwards via the
+    // non-blocking actionsOnly call above.
+    if (stream) {
+      const params = tuneParams(
+        { model: ANALYZE_MODEL, messages: openaiMessages, stream: true },
+        ANALYZE_MODEL,
+        0.7,
+        ANALYZE_REASONING_EFFORT,
+      ) as OpenAI.Chat.ChatCompletionCreateParamsStreaming;
+
+      // Tie the upstream model call to the client connection: if the user
+      // navigates away, req.signal aborts and we stop generating (and paying).
+      const completion = await openai.chat.completions.create(params, { signal: req.signal });
+      const encoder = new TextEncoder();
+      const body = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          try {
+            for await (const chunk of completion) {
+              const delta = chunk.choices?.[0]?.delta?.content;
+              if (!delta) continue;
+              try {
+                controller.enqueue(encoder.encode(delta));
+              } catch {
+                break; // client disconnected — stream already closed
+              }
+            }
+          } catch (err) {
+            // Client-abort (navigation) is expected; only log genuine failures.
+            if ((err as { name?: string })?.name !== 'AbortError') {
+              console.error('Streaming error in chat route:', err);
+            }
+          } finally {
+            try {
+              controller.close();
+            } catch {
+              /* already closed */
+            }
+          }
+        },
+        cancel() {
+          completion.controller?.abort();
+        },
+      });
+
+      return new Response(body, {
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': 'no-cache, no-transform',
+          'X-Accel-Buffering': 'no',
+        },
+      });
     }
 
     // Tell the advisor when it's appropriate to create reminders/todos, so it
